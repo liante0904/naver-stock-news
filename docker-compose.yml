@@ -1,0 +1,10 @@
+services:
+  news-bot:
+    build: .
+    image: naver-stock-news-bot:latest
+    container_name: naver-stock-news-bot
+    restart: always
+    env_file: .env
+    volumes:
+      - ~/sqlite3:/app/db
+      - ~/log:/app/log
