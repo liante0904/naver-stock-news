@@ -3,6 +3,7 @@ services:
     build: .
     image: naver-stock-news-bot:latest
     container_name: naver-stock-news-bot
+    user: "1000:1000"
     restart: always
     env_file: .env
     volumes:
