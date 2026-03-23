@@ -3,7 +3,7 @@ services:
     build: .
     image: naver-stock-news-bot:latest
     container_name: naver-stock-news-bot
-    user: "1000:1000"
+    user: "1001:1001"  # 잠시 주석 처리
     restart: always
     env_file: .env
     volumes:
