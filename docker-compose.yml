@@ -1,11 +1,8 @@
 services:
   news-bot:
-    build: .
-    # ENV가 production이면 naver-stock-news-bot, 아니면 naver-stock-news-bot-dev
-    image: naver-stock-news-bot:${ENV:-dev}
-    container_name: naver-stock-news-bot${ENV_SUFFIX:-}
+    image: ghcr.io/liante0904/naver-stock-news:latest
+    container_name: naver-stock-news-bot
     user: "1001:1001"
-  # 잠시 주석 처리
     restart: always
     env_file: .env
     volumes:

@@ -5,10 +5,38 @@ on:
     branches:
       - main
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: liante0904/naver-stock-news
 
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
@@ -18,12 +46,12 @@ jobs:
           key: ${{ secrets.DEPLOY_KEY }}
           port: 22
           script: |
-            mkdir -p ~/prod
-            cd ~/prod
-            if [ ! -d "naver-stock-news" ]; then
-              git clone git@github.com:${{ github.repository }}.git naver-stock-news
-            fi
-            cd naver-stock-news
+            mkdir -p ~/prod/naver-stock-news
+            cd ~/prod/naver-stock-news
+            # git pull로 docker-compose.yml 동기화 (설정이 바뀌었으므로 필수)
             git fetch origin main
             git reset --hard origin/main
-            docker-compose up -d --build
+            
+            # 새 이미지 풀 및 컨테이너 재시작
+            docker-compose pull
+            docker-compose up -d
