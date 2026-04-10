@@ -17,14 +17,22 @@ IS_PROD = ENV == 'production'
 
 # 로그 설정
 def setup_logging():
-    now_date = datetime.datetime.now().strftime("%Y%m%d")
+    # 도커 환경 여부에 따른 베이스 로그 디렉토리 결정
     base_log_dir = "/app/log" if IS_DOCKER else os.path.expanduser("~/log")
-    log_dir = os.path.join(base_log_dir, now_date)
-    os.makedirs(log_dir, exist_ok=True)
-    
-    log_file = os.path.join(log_dir, f"{now_date}_naver-stock-news.log")
-    logger.add(log_file, rotation="10 MB", retention="10 days", level="INFO", enqueue=True)
-    return log_file
+
+    # loguru의 {time} 토큰을 사용하여 폴더와 파일명에 동적으로 날짜가 반영되도록 설정
+    # 이렇게 하면 자정에 파일이 바뀌면서 새 날짜 폴더도 자동으로 생성됩니다.
+    log_file_pattern = os.path.join(base_log_dir, "{time:YYYYMMDD}", "{time:YYYYMMDD}_naver-stock-news.log")
+
+    # rotation="00:00" 설정을 통해 매일 자정에 로그 로테이션 수행
+    logger.add(
+        log_file_pattern,
+        rotation="00:00",
+        retention="10 days",
+        level="INFO",
+        enqueue=True
+    )
+    return log_file_pattern
 
 async def run_service(scraper, db_path):
     """도커 서비스 모드: 무한 루프 (시계 정시 기준 5분 단위 실행)"""
