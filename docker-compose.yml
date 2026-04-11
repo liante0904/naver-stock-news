@@ -10,3 +10,4 @@ services:
     volumes:
       - ~/sqlite3:/app/db
       - ~/log:/app/log
+      - ./app.py:/app/app.py

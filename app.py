@@ -15,24 +15,50 @@ IS_DOCKER = os.path.exists("/app")
 ENV = os.getenv('ENV', 'dev').lower()
 IS_PROD = ENV == 'production'
 
+# 전역 변수로 로그 핸들러 상태 관리
+_log_handler_id = None
+_current_log_date = None
+
 # 로그 설정
 def setup_logging():
+    global _log_handler_id, _current_log_date
+    
+    now = datetime.datetime.now()
+    now_date = now.strftime("%Y%m%d")
+
+    # 이미 오늘 날짜로 핸들러가 등록되어 있다면 건너뜁니다.
+    if _current_log_date == now_date:
+        return _current_log_date
+
+    # 기존 핸들러가 있다면 제거
+    if _log_handler_id is not None:
+        try:
+            logger.remove(_log_handler_id)
+        except Exception:
+            pass
+
     # 도커 환경 여부에 따른 베이스 로그 디렉토리 결정
     base_log_dir = "/app/log" if IS_DOCKER else os.path.expanduser("~/log")
+    
+    # 날짜별 폴더 및 파일명 설정
+    log_dir = os.path.join(base_log_dir, now_date)
+    log_file = os.path.join(log_dir, f"{now_date}_naver-stock-news.log")
+    
+    # 폴더 생성 보장
+    os.makedirs(log_dir, exist_ok=True)
 
-    # loguru의 {time} 토큰을 사용하여 폴더와 파일명에 동적으로 날짜가 반영되도록 설정
-    # 이렇게 하면 자정에 파일이 바뀌면서 새 날짜 폴더도 자동으로 생성됩니다.
-    log_file_pattern = os.path.join(base_log_dir, "{time:YYYYMMDD}", "{time:YYYYMMDD}_naver-stock-news.log")
-
-    # rotation="00:00" 설정을 통해 매일 자정에 로그 로테이션 수행
-    logger.add(
-        log_file_pattern,
+    # 새로운 핸들러 등록 (rotation은 보조적으로 유지)
+    _log_handler_id = logger.add(
+        log_file,
         rotation="00:00",
         retention="10 days",
         level="INFO",
         enqueue=True
     )
-    return log_file_pattern
+    
+    _current_log_date = now_date
+    logger.info(f"--- Log handler updated for date: {now_date} ---")
+    return _current_log_date
 
 async def run_service(scraper, db_path):
     """도커 서비스 모드: 무한 루프 (시계 정시 기준 5분 단위 실행)"""
@@ -41,6 +67,9 @@ async def run_service(scraper, db_path):
     logger.info(f"{log_prefix}Starting Naver Stock News Bot in SERVICE mode (Aligned to 5m)")
     
     while True:
+        # 매 루프 시작 시 로그 핸들러 날짜 체크 및 갱신
+        setup_logging()
+        
         now = datetime.datetime.now()
         # 현재 시간에서 정각(0분 0초) 기준 지난 총 초 계산
         seconds_since_hour = (now.minute * 60) + now.second
