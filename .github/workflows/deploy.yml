@@ -58,6 +58,7 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             
-            # 새 이미지 풀 및 컨테이너 재시작
+            # GHCR 로그인 후 새 이미지 풀 및 컨테이너 재시작
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker-compose pull
             docker-compose up -d
