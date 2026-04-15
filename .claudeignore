@@ -1,0 +1,7 @@
+.env
+.env.bak
+uv.lock
+*.log
+logs/
+__pycache__/
+.git/

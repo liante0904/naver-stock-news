@@ -29,16 +29,26 @@ class NewsScraper:
         self.prefix = "<b>[DEV]</b> " if is_dev else ""
         logger.info(f"NewsScraper initialized with prefix: '{self.prefix}'")
 
-    async def fetch(self, session, url):
-        try:
-            async with session.get(url, headers={'User-Agent': 'Mozilla/5.0'}) as response:
-                if response.status != 200:
-                    logger.error(f"{url} 접속 실패 (Status: {response.status})")
+    async def fetch(self, session, url, max_retries=3, delay=3):
+        for attempt in range(max_retries):
+            try:
+                async with session.get(url, headers={'User-Agent': 'Mozilla/5.0'}) as response:
+                    if response.status == 200:
+                        return await response.json()
+                    
+                    if attempt < max_retries - 1:
+                        logger.warning(f"{url} 접속 실패 (Status: {response.status}). {delay}초 후 재시도 ({attempt + 1}/{max_retries})")
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(f"{url} 최종 접속 실패 (Status: {response.status})")
+                        return None
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Error fetching {url}: {e}. {delay}초 후 재시도 ({attempt + 1}/{max_retries})")
+                    await asyncio.sleep(delay)
+                else:
+                    logger.exception(f"Error fetching {url} {max_retries}회 시도 후 최종 실패: {e}")
                     return None
-                return await response.json()
-        except Exception as e:
-            logger.exception(f"Error fetching {url}: {e}")
-            return None
 
     def escape_html(self, text):
         return html.escape(text) if text else ""
