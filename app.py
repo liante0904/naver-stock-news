@@ -38,7 +38,7 @@ def setup_logging():
             pass
 
     # 도커 환경 여부에 따른 베이스 로그 디렉토리 결정
-    base_log_dir = "/app/log" if IS_DOCKER else os.path.expanduser("~/log")
+    base_log_dir = "/app/log" if IS_DOCKER else os.path.expanduser("~/logs")
     
     # 날짜별 폴더 및 파일명 설정
     log_dir = os.path.join(base_log_dir, now_date)

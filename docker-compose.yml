@@ -9,5 +9,5 @@ services:
       - TZ=Asia/Seoul
     volumes:
       - ~/sqlite3:/app/db
-      - ~/log:/app/log
+      - ~/logs:/app/log
       - ./app.py:/app/app.py
