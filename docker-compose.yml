@@ -4,7 +4,8 @@ services:
     container_name: naver-stock-news-bot
     user: "1001:1001"
     restart: always
-    env_file: .env
+    env_file:
+      - .env
     environment:
       - TZ=Asia/Seoul
     volumes:
