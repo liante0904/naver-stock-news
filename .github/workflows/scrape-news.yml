@@ -1,0 +1,74 @@
+name: Naver/Chosun News Scraper → SCP
+
+on:
+  schedule:
+    # ── KST 05시~19시, 짝수 앞자리(0,5,20,25,40,45분) ──
+    #   KST 05~08 = UTC 20~23
+    - cron: '0,5,20,25,40,45 20-23 * * *'
+    #   KST 09~19 = UTC 00~10
+    - cron: '0,5,20,25,40,45 0-10 * * *'
+    # GitHub Actions cron은 UTC 기준이므로 KST-9 변환 필수
+    # 총 90회/일 (15시간 × 6회)
+
+  workflow_dispatch:
+
+jobs:
+  scrape-and-scp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install deps
+        run: uv sync --frozen --no-cache
+
+      - name: Run News scraper
+        env:
+          CHOSUN_BIZ_API_URL: ${{ secrets.CHOSUN_BIZ_API_URL }}
+          NAVER_FLASH_API_URL: ${{ secrets.NAVER_FLASH_API_URL }}
+          NAVER_RANK_API_URL: ${{ secrets.NAVER_RANK_API_URL }}
+          NAVER_FLASH_LINK_TPL: ${{ secrets.NAVER_FLASH_LINK_TPL }}
+          NAVER_RANK_LINK_TPL: ${{ secrets.NAVER_RANK_LINK_TPL }}
+        run: |
+          uv run python run/standalone/news.py > news_result.json 2>news_log.txt
+          echo "=== Scraper Log ==="
+          cat news_log.txt
+          COUNT=$(python3 -c "import json; print(len(json.load(open('news_result.json'))))")
+          echo "Articles collected: $COUNT"
+
+      - name: Validate result
+        run: |
+          python3 -c "
+          import json, sys, re
+          with open('news_result.json') as f:
+              data = json.load(f)
+          errors = 0
+          for i, item in enumerate(data):
+              if not item.get('report_unique_key'):
+                  print(f'  item[{i}]: missing report_unique_key', file=sys.stderr)
+                  errors += 1
+              if not re.match(r'^\d{8}$', str(item.get('reg_dt', ''))):
+                  print(f'  item[{i}]: invalid reg_dt', file=sys.stderr)
+                  errors += 1
+          if errors > 0:
+              print(f'FAIL: {errors} errors', file=sys.stderr)
+              sys.exit(1)
+          if len(data) == 0:
+              print('FAIL: empty result', file=sys.stderr)
+              sys.exit(1)
+          print(f'OK: {len(data)} articles', file=sys.stderr)
+          "
+
+      - name: SCP to server
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          scp -P ${{ secrets.SERVER_PORT || 22 }} news_result.json ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:incoming/ga-scrapes/
+          echo "SCP transfer complete"
