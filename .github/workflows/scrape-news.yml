@@ -67,8 +67,8 @@ jobs:
       - name: SCP to server
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-          scp -P ${{ secrets.SERVER_PORT || 22 }} news_result.json ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:incoming/ga-scrapes/
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          scp -P ${{ secrets.SERVER_PORT || 22 }} news_result.json ubuntu@${{ secrets.DEPLOY_HOST }}:incoming/ga-scrapes/
           echo "SCP transfer complete"
