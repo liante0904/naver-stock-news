@@ -53,8 +53,8 @@ jobs:
           key: ${{ secrets.DEPLOY_KEY }}
           port: 22
           script: |
-            mkdir -p ~/prod/naver-stock-news
-            cd ~/prod/naver-stock-news
+            mkdir -p ~/workspace/external.reports-hub/apps/scrapers/naver-stock-news
+            cd ~/workspace/external.reports-hub/apps/scrapers/naver-stock-news
             git fetch origin main
             git reset --hard origin/main
             
