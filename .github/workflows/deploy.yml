@@ -43,7 +43,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
+      - name: Sync fallback files via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -55,8 +55,9 @@ jobs:
             cd ~/workspace/external.reports-hub/apps/scrapers/naver-stock-news
             git fetch origin main
             git reset --hard origin/main
-            
-            # GHCR 로그인 후 새 이미지 풀 및 컨테이너 재시작
+
+            # GA is the production runner. Keep OCI Docker as a manual fallback only.
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker-compose pull
-            docker-compose up -d
+            docker-compose --profile fallback pull
+            docker update --restart=no naver-stock-news-bot >/dev/null 2>&1 || true
+            docker stop naver-stock-news-bot >/dev/null 2>&1 || true

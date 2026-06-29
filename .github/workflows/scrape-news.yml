@@ -2,7 +2,7 @@ name: Naver/Chosun News Scraper → SCP
 
 on:
   schedule:
-    # GA-only news delivery. OCI Docker service must stay stopped.
+    # GA-only news delivery. OCI Docker service/API calls must stay stopped.
     # KST 05~19, every 5 minutes. UTC = KST - 9.
     - cron: '*/5 0-10,20-23 * * *'
   workflow_dispatch:

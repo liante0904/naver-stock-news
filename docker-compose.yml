@@ -1,9 +1,10 @@
 services:
   news-bot:
+    profiles: ["fallback"]
     image: ghcr.io/liante0904/naver-stock-news:latest
     container_name: naver-stock-news-bot
     user: "1001:1001"
-    restart: always
+    restart: "no"
     env_file:
       - .env
     environment:
