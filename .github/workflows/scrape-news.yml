@@ -3,14 +3,23 @@ name: Naver/Chosun News Scraper → SCP
 on:
   schedule:
     # GA-only news delivery. OCI Docker service/API calls must stay stopped.
-    # KST 05~19, every 5 minutes. UTC = KST - 9.
-    - cron: '*/5 0-10,20-23 * * *'
+    # Start once per hour, then run 12 in-job loops at 5-minute intervals.
+    # KST 05~19 window. UTC = KST - 9.
+    - cron: '7 0-10,20-23 * * *'
   workflow_dispatch:
+    inputs:
+      loop_count:
+        description: 'Number of 5-minute loops to run'
+        required: false
+        default: '1'
 
 jobs:
   scrape-and-scp:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 70
+    concurrency:
+      group: naver-stock-news-ga
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
@@ -22,7 +31,22 @@ jobs:
       - name: Install deps
         run: uv sync --frozen --no-cache
 
-      - name: Run News scraper
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Select loop count
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "LOOP_COUNT=12" >> "$GITHUB_ENV"
+          else
+            echo "LOOP_COUNT=${{ inputs.loop_count || '1' }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run News scraper loop
         env:
           CHOSUN_BIZ_API_URL: ${{ secrets.CHOSUN_BIZ_API_URL }}
           NAVER_FLASH_API_URL: ${{ secrets.NAVER_FLASH_API_URL }}
@@ -30,40 +54,34 @@ jobs:
           NAVER_FLASH_LINK_TPL: ${{ secrets.NAVER_FLASH_LINK_TPL }}
           NAVER_RANK_LINK_TPL: ${{ secrets.NAVER_RANK_LINK_TPL }}
         run: |
-          uv run python run/standalone/news.py > news_result.json 2>news_log.txt
-          echo "=== Scraper Log ==="
-          cat news_log.txt
-          COUNT=$(python3 -c "import json; print(len(json.load(open('news_result.json'))))")
-          echo "Articles collected: $COUNT"
-
-      - name: Validate result
-        run: |
-          python3 -c "
-          import json, sys, re
-          with open('news_result.json') as f:
-              data = json.load(f)
-          errors = 0
-          for i, item in enumerate(data):
-              if not item.get('report_unique_key'):
-                  print(f'  item[{i}]: missing report_unique_key', file=sys.stderr)
-                  errors += 1
-              if not re.match(r'^\d{8}$', str(item.get('reg_dt', ''))):
-                  print(f'  item[{i}]: invalid reg_dt', file=sys.stderr)
-                  errors += 1
-          if errors > 0:
-              print(f'FAIL: {errors} errors', file=sys.stderr)
-              sys.exit(1)
-          if len(data) == 0:
-              print('FAIL: empty result', file=sys.stderr)
-              sys.exit(1)
-          print(f'OK: {len(data)} articles', file=sys.stderr)
-          "
-
-      - name: SCP to server
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
-          scp -P ${{ secrets.SERVER_PORT || 22 }} news_result.json ubuntu@${{ secrets.DEPLOY_HOST }}:incoming/ga-scrapes/
-          echo "SCP transfer complete"
+          for i in $(seq 1 "$LOOP_COUNT"); do
+            echo "=== Loop $i/$LOOP_COUNT: $(date -u '+%Y-%m-%dT%H:%M:%SZ') ==="
+            uv run python run/standalone/news.py > news_result.json 2>news_log.txt
+            echo "=== Scraper Log ==="
+            cat news_log.txt
+            python3 -c "
+            import json, sys, re
+            with open('news_result.json') as f:
+                data = json.load(f)
+            errors = 0
+            for i, item in enumerate(data):
+                if not item.get('report_unique_key'):
+                    print(f'  item[{i}]: missing report_unique_key', file=sys.stderr)
+                    errors += 1
+                if not re.match(r'^\d{8}$', str(item.get('reg_dt', ''))):
+                    print(f'  item[{i}]: invalid reg_dt', file=sys.stderr)
+                    errors += 1
+            if errors > 0:
+                print(f'FAIL: {errors} errors', file=sys.stderr)
+                sys.exit(1)
+            if len(data) == 0:
+                print('FAIL: empty result', file=sys.stderr)
+                sys.exit(1)
+            print(f'OK: {len(data)} articles', file=sys.stderr)
+            "
+            scp -P ${{ secrets.SERVER_PORT || 22 }} news_result.json ubuntu@${{ secrets.DEPLOY_HOST }}:incoming/ga-scrapes/
+            echo "SCP transfer complete"
+            if [ "$i" -lt "$LOOP_COUNT" ]; then
+              sleep 300
+            fi
+          done
