@@ -2,14 +2,10 @@ name: Naver/Chosun News Scraper → SCP
 
 on:
   schedule:
-    # ── KST 05시~19시, 짝수 앞자리(0,5,20,25,40,45분) ──
-    #   KST 05~08 = UTC 20~23
-    - cron: '0,5,20,25,40,45 20-23 * * *'
-    #   KST 09~19 = UTC 00~10
-    - cron: '0,5,20,25,40,45 0-10 * * *'
-    # GitHub Actions cron은 UTC 기준이므로 KST-9 변환 필수
-    # 총 90회/일 (15시간 × 6회)
-
+    # GA-only news delivery. OCI Docker service must stay stopped.
+    # KST 05~19, every 10 minutes. UTC = KST - 9.
+    - cron: '0,10,20,30,40,50 20-23 * * *'
+    - cron: '0,10,20,30,40,50 0-10 * * *'
   workflow_dispatch:
 
 jobs:

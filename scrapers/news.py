@@ -29,7 +29,7 @@ class NewsScraper:
         self.prefix = "<b>[DEV]</b> " if is_dev else ""
         logger.info(f"NewsScraper initialized with prefix: '{self.prefix}'")
 
-    async def fetch(self, session, url, max_retries=3, delay=3):
+    async def fetch(self, session, url, max_retries=3, delay=3, final_log_level="error"):
         for attempt in range(max_retries):
             try:
                 async with session.get(url, headers={'User-Agent': 'Mozilla/5.0'}) as response:
@@ -40,14 +40,21 @@ class NewsScraper:
                         logger.warning(f"{url} 접속 실패 (Status: {response.status}). {delay}초 후 재시도 ({attempt + 1}/{max_retries})")
                         await asyncio.sleep(delay)
                     else:
-                        logger.error(f"{url} 최종 접속 실패 (Status: {response.status})")
+                        log_message = f"{url} 최종 접속 실패 (Status: {response.status})"
+                        if final_log_level == "warning":
+                            logger.warning(log_message)
+                        else:
+                            logger.error(log_message)
                         return None
             except Exception as e:
                 if attempt < max_retries - 1:
                     logger.warning(f"Error fetching {url}: {e}. {delay}초 후 재시도 ({attempt + 1}/{max_retries})")
                     await asyncio.sleep(delay)
                 else:
-                    logger.exception(f"Error fetching {url} {max_retries}회 시도 후 최종 실패: {e}")
+                    if final_log_level == "warning":
+                        logger.warning(f"Error fetching {url} {max_retries}회 시도 후 최종 실패: {e}")
+                    else:
+                        logger.exception(f"Error fetching {url} {max_retries}회 시도 후 최종 실패: {e}")
                     return None
 
     def escape_html(self, text):
@@ -63,7 +70,9 @@ class NewsScraper:
         url = 'https://mweb-api.stockplus.com/api/news_items/all_news.json?scope=latest&limit=100'
         header = "●조선비즈 - C-Biz봇"
         async with aiohttp.ClientSession() as session:
-            data = await self.fetch(session, url)
+            # StockPlus frequently blocks this endpoint with 403 while Naver sources
+            # continue to work. Treat it as degraded source state, not bot failure.
+            data = await self.fetch(session, url, final_log_level="warning")
             if not data: return
             send_buffer = ""
             for item in data.get('newsItems', []):
