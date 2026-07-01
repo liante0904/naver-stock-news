@@ -52,9 +52,11 @@ jobs:
         run: |
           for i in $(seq 1 "$LOOP_COUNT"); do
             echo "=== Loop $i/$LOOP_COUNT: $(date -u '+%Y-%m-%dT%H:%M:%SZ') ==="
-            uv run python run/standalone/send_news.py 2>send_news_log.txt
-            echo "=== Send News Log ==="
+            uv run python run/standalone/send_news.py > send_news_log.txt 2>&1
+            EXIT_CODE=$?
+            echo "=== Send News Log (exit=$EXIT_CODE) ==="
             cat send_news_log.txt
+            exit $EXIT_CODE
             if [ "$i" -lt "$LOOP_COUNT" ]; then
               sleep 300
             fi

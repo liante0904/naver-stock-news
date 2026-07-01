@@ -5,7 +5,7 @@ import os
 import sys
 import html as html_mod
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from scrapers.news_core import scrape_all_news
 from utils.telegram_util import sendMarkDownText
 
