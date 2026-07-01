@@ -3,7 +3,6 @@
 import asyncio
 import os
 import aiohttp
-import html
 import datetime
 from loguru import logger
 
@@ -55,7 +54,10 @@ async def _fetch(session, url, max_retries=3, delay=3):
 
 
 def _escape_html(text):
-    return html.escape(text) if text else ""
+    """Telegram HTML parse mode용 최소 이스케이프 (<, >, & 만)."""
+    if not text:
+        return ""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 async def scrape_chosun_biz(session) -> list[dict]:

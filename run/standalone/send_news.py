@@ -3,7 +3,11 @@
 import asyncio
 import os
 import sys
-import html as html_mod
+def _escape_html(text: str) -> str:
+    """Telegram HTML parse mode에서 특수문자만 최소 이스케이프."""
+    if not text:
+        return ""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from scrapers.news_core import scrape_all_news
@@ -55,7 +59,7 @@ async def send_articles(articles):
         buffer = ""
 
         for item in items:
-            title = html_mod.escape(item.get("article_title", ""))
+            title = _escape_html(item.get("article_title", ""))
             link = item.get("article_url", "")
             if not title or not link:
                 continue

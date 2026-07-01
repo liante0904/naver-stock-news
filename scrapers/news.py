@@ -2,7 +2,6 @@
 import os
 import asyncio
 import aiohttp
-import html
 import datetime
 from loguru import logger
 from dotenv import load_dotenv
@@ -58,7 +57,10 @@ class NewsScraper:
                     return None
 
     def escape_html(self, text):
-        return html.escape(text) if text else ""
+        """Telegram HTML parse mode용 최소 이스케이프 (<, >, & 만)."""
+        if not text:
+            return ""
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     async def _send_batch_message(self, chat_id, header, body):
         if not body: return
