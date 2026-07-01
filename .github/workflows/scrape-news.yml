@@ -1,10 +1,9 @@
-name: Naver/Chosun News Scraper → SCP
+name: Naver/Chosun News Scraper → Telegram
 
 on:
   schedule:
-    # GA-only news delivery. OCI Docker service/API calls must stay stopped.
-    # Start once per hour, then run 12 in-job loops at 5-minute intervals.
     # KST 05~19 window. UTC = KST - 9.
+    # Run hourly at minute 7, each run loops 12 times at 5-min intervals.
     - cron: '7 0-10,20-23 * * *'
   workflow_dispatch:
     inputs:
@@ -14,7 +13,7 @@ on:
         default: '1'
 
 jobs:
-  scrape-and-scp:
+  scrape-and-send:
     runs-on: ubuntu-latest
     timeout-minutes: 70
     concurrency:
@@ -31,13 +30,6 @@ jobs:
       - name: Install deps
         run: uv sync --frozen --no-cache
 
-      - name: Prepare SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
-
       - name: Select loop count
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -46,8 +38,12 @@ jobs:
             echo "LOOP_COUNT=${{ inputs.loop_count || '1' }}" >> "$GITHUB_ENV"
           fi
 
-      - name: Run News scraper loop
+      - name: Run News scraper + Telegram send
         env:
+          TELEGRAM_BOT_TOKEN_REPORT_ALARM_SECRET: ${{ secrets.TELEGRAM_BOT_TOKEN_REPORT_ALARM_SECRET }}
+          TELEGRAM_CHANNEL_ID_CHOSUNBIZBOT: ${{ secrets.TELEGRAM_CHANNEL_ID_CHOSUNBIZBOT }}
+          TELEGRAM_CHANNEL_ID_NAVER_FLASHNEWS: ${{ secrets.TELEGRAM_CHANNEL_ID_NAVER_FLASHNEWS }}
+          TELEGRAM_CHANNEL_ID_NAVER_RANKNEWS: ${{ secrets.TELEGRAM_CHANNEL_ID_NAVER_RANKNEWS }}
           CHOSUN_BIZ_API_URL: ${{ secrets.CHOSUN_BIZ_API_URL }}
           NAVER_FLASH_API_URL: ${{ secrets.NAVER_FLASH_API_URL }}
           NAVER_RANK_API_URL: ${{ secrets.NAVER_RANK_API_URL }}
@@ -56,37 +52,9 @@ jobs:
         run: |
           for i in $(seq 1 "$LOOP_COUNT"); do
             echo "=== Loop $i/$LOOP_COUNT: $(date -u '+%Y-%m-%dT%H:%M:%SZ') ==="
-            uv run python run/standalone/news.py > news_result.json 2>news_log.txt
-            echo "=== Scraper Log ==="
-            cat news_log.txt
-            python3 <<'PY'
-          import json
-          import re
-          import sys
-
-          with open('news_result.json') as f:
-              data = json.load(f)
-
-          errors = 0
-          for idx, item in enumerate(data):
-              if not item.get('report_unique_key'):
-                  print(f'  item[{idx}]: missing report_unique_key', file=sys.stderr)
-                  errors += 1
-              if not re.match(r'^\d{8}$', str(item.get('reg_dt', ''))):
-                  print(f'  item[{idx}]: invalid reg_dt', file=sys.stderr)
-                  errors += 1
-
-          if errors > 0:
-              print(f'FAIL: {errors} errors', file=sys.stderr)
-              sys.exit(1)
-          if len(data) == 0:
-              print('FAIL: empty result', file=sys.stderr)
-              sys.exit(1)
-
-          print(f'OK: {len(data)} articles', file=sys.stderr)
-          PY
-            scp -P ${{ secrets.SERVER_PORT || 22 }} news_result.json ubuntu@${{ secrets.DEPLOY_HOST }}:incoming/ga-scrapes/
-            echo "SCP transfer complete"
+            uv run python run/standalone/send_news.py 2>send_news_log.txt
+            echo "=== Send News Log ==="
+            cat send_news_log.txt
             if [ "$i" -lt "$LOOP_COUNT" ]; then
               sleep 300
             fi
