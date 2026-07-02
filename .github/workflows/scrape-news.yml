@@ -56,7 +56,9 @@ jobs:
             EXIT_CODE=$?
             echo "=== Send News Log (exit=$EXIT_CODE) ==="
             cat send_news_log.txt
-            exit $EXIT_CODE
+            if [ "$EXIT_CODE" -ne 0 ]; then
+              echo "Loop $i failed with exit=$EXIT_CODE, continuing next loop..."
+            fi
             if [ "$i" -lt "$LOOP_COUNT" ]; then
               sleep 300
             fi
