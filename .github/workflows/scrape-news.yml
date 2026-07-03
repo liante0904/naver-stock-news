@@ -3,19 +3,13 @@ name: Naver/Chosun News Scraper → Telegram
 on:
   schedule:
     # KST 05~19 window. UTC = KST - 9.
-    # Run hourly at minute 7, each run loops 12 times at 5-min intervals.
-    - cron: '7 0-10,20-23 * * *'
-  workflow_dispatch:
-    inputs:
-      loop_count:
-        description: 'Number of 5-minute loops to run'
-        required: false
-        default: '1'
+    # Every 5 minutes — no internal loops, single pipeline execution.
+    - cron: '*/5 0-10,20-23 * * *'
 
 jobs:
   scrape-and-send:
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 5
     concurrency:
       group: naver-stock-news-ga
       cancel-in-progress: false
@@ -30,15 +24,16 @@ jobs:
       - name: Install deps
         run: uv sync --frozen --no-cache
 
-      - name: Select loop count
-        run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "LOOP_COUNT=12" >> "$GITHUB_ENV"
-          else
-            echo "LOOP_COUNT=${{ inputs.loop_count || '1' }}" >> "$GITHUB_ENV"
-          fi
+      - name: Restore dedup cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: db/dedup.db
+          key: naver-news-dedup-v1
+          restore-keys: |
+            naver-news-dedup-v1
 
-      - name: Run News scraper + Telegram send
+      - name: Scrape → JSON → Send
         env:
           TELEGRAM_BOT_TOKEN_REPORT_ALARM_SECRET: ${{ secrets.TELEGRAM_BOT_TOKEN_REPORT_ALARM_SECRET }}
           TELEGRAM_CHANNEL_ID_CHOSUNBIZBOT: ${{ secrets.TELEGRAM_CHANNEL_ID_CHOSUNBIZBOT }}
@@ -50,16 +45,5 @@ jobs:
           NAVER_FLASH_LINK_TPL: ${{ secrets.NAVER_FLASH_LINK_TPL }}
           NAVER_RANK_LINK_TPL: ${{ secrets.NAVER_RANK_LINK_TPL }}
         run: |
-          for i in $(seq 1 "$LOOP_COUNT"); do
-            echo "=== Loop $i/$LOOP_COUNT: $(date -u '+%Y-%m-%dT%H:%M:%SZ') ==="
-            uv run python run/standalone/send_news.py > send_news_log.txt 2>&1
-            EXIT_CODE=$?
-            echo "=== Send News Log (exit=$EXIT_CODE) ==="
-            cat send_news_log.txt
-            if [ "$EXIT_CODE" -ne 0 ]; then
-              echo "Loop $i failed with exit=$EXIT_CODE, continuing next loop..."
-            fi
-            if [ "$i" -lt "$LOOP_COUNT" ]; then
-              sleep 300
-            fi
-          done
+          mkdir -p db
+          uv run python run/standalone/news.py | uv run python run/standalone/send.py
