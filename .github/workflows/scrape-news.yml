@@ -1,10 +1,9 @@
 name: Naver/Chosun News Scraper → Telegram
 
 on:
-  schedule:
-    # KST 05~19 window. UTC = KST - 9.
-    # Every 10 minutes — GitHub throttles */5 too aggressively on public repos.
-    - cron: '*/10 0-10,20-23 * * *'
+  workflow_dispatch:  # triggered by oci cron via gh CLI — no GitHub scheduler throttling
+  schedule:           # fallback only — public repo, heavily throttled
+    - cron: '*/5 0-10,20-23 * * *'
 
 jobs:
   scrape-and-send:
