@@ -60,7 +60,7 @@ def dedup_articles(articles: list[dict], db: DatabaseManager) -> dict[str, list[
         if source not in SOURCE_TO_CHANNEL_KEY:
             continue
         title = art.get("article_title", "")
-        url = art.get("article_url", "")
+        url = art.get("source_url", "")
         if not title or not url:
             continue
 
@@ -99,7 +99,7 @@ async def send_grouped(grouped: dict[str, list[dict]]) -> dict[str, tuple[int, i
 
         for item in items:
             title = _escape_html(item.get("article_title", ""))
-            link = item.get("article_url", "")
+            link = item.get("source_url", "")
             if not title or not link:
                 continue
 

@@ -60,7 +60,7 @@ async def send_articles(articles):
 
         for item in items:
             title = _escape_html(item.get("article_title", ""))
-            link = item.get("article_url", "")
+            link = item.get("source_url", "")
             if not title or not link:
                 continue
 
